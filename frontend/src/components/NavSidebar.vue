@@ -19,7 +19,7 @@
         <input
           v-model="localKey"
           :type="showKey ? 'text' : 'password'"
-          placeholder=""
+
           class="ai-input"
           @change="handleSave"
         />
