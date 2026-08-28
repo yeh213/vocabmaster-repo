@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VocabMaster｜英文單字練習</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="brand">📚 VocabMaster</div>
+    <ul class="nav">
+      <li data-page="dashboard" class="active">📊 <span>總覽</span></li>
+      <li data-page="words">📝 <span>我的單字</span></li>
+      <li data-page="quiz">🧪 <span>測驗</span></li>
+      <li id="btn-ai-settings">🤖 <span>AI 設定</span><span class="ai-indicator hidden" id="ai-indicator">✓</span></li>
+    </ul>
+    <div class="sidebar-footer">
+      <button id="btn-autosave">
+        📁 <span id="autosave-label">選擇資料檔</span>
+      </button>
+      <div id="file-connected" class="file-connected hidden">
+        <span>✅ <span id="file-name">已連結</span></span>
+        <button id="btn-disconnect" title="中斷連結">✕</button>
+      </div>
+      <div id="file-reconnect" class="file-reconnect hidden">
+        <span>⚠️ 需重新授權</span>
+        <button id="btn-reconnect">授權</button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main"></main>
+
+</div>
+
+<!-- Add / Edit Word Modal -->
+<div id="overlay" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">新增單字</h3>
+      <button id="modal-close">✕</button>
+    </div>
+    <form id="word-form">
+      <div class="form-group">
+        <label for="f-word">英文單字 <b>*</b></label>
+        <input id="f-word" type="text" placeholder="e.g. ambiguous" autocomplete="off" spellcheck="true" required>
+        <div id="f-word-warn" style="display:none;color:var(--warning);font-size:.82rem;margin-top:4px"></div>
+      </div>
+      <div class="form-group">
+        <label for="f-def">中文釋義 <b>*</b></label>
+        <textarea id="f-def" placeholder="e.g. 模糊的、不明確的" rows="2" required></textarea>
+      </div>
+      <div class="form-group">
+        <label for="f-pos">詞性 <small>（選填）</small></label>
+        <input id="f-pos" type="text" placeholder="e.g. adj.; n." autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="f-ex">例句 <small>（選填）</small></label>
+        <textarea id="f-ex" placeholder="e.g. The meaning is ambiguous." rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label>分類</label>
+        <div id="f-group-preview" class="readonly-field">輸入英文單字後會依第一個字母自動分類</div>
+      </div>
+      <div class="form-foot">
+        <button type="button" id="form-cancel">取消</button>
+        <button type="submit" class="primary">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- AI Settings Modal -->
+<div id="ai-overlay" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>🤖 AI 設定</h3>
+      <button id="ai-modal-close">✕</button>
+    </div>
+    <div id="ai-form">
+      <div class="form-group">
+        <label for="ai-key">Gemini API Key</label>
+        <div class="ai-key-row">
+          <input id="ai-key" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false">
+          <button type="button" id="ai-key-toggle" title="顯示／隱藏">👁</button>
+        </div>
+        <small>Key 僅儲存於本機 localStorage，不會傳送至任何伺服器</small>
+      </div>
+      <div class="form-group">
+        <label for="ai-model">模型</label>
+        <select id="ai-model">
+          <option value="gemini-3.7-flash">gemini-3.7-flash（最新、強大）</option>
+          <option value="gemini-3.5-flash">gemini-3.5-flash（穩定、均衡）</option>
+          <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite（快速、省成本）</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro（強推理）</option>
+          <option value="gemini-2.5-flash">gemini-2.5-flash（舊版穩定）</option>
+        </select>
+      </div>
+      <div class="form-foot">
+        <button type="button" id="ai-cancel">取消</button>
+        <button type="button" id="ai-save" class="primary">儲存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

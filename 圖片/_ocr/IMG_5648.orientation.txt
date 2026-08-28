@@ -1,0 +1,1 @@
+flip score=500 other=35

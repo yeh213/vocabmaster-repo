@@ -1,0 +1,1 @@
+flip score=536 other=30

@@ -1,0 +1,8 @@
+name = "vocabmaster-worker"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vocabmaster"
+database_id = "6c259714-8d5c-493a-a487-cc7bf49c7266"
