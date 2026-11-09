@@ -1,2 +1,17 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', sans-serif; }
+
+/* ---------- 手機（與 composables/useIsMobile.js 的斷點一致） ---------- */
+@media (max-width: 768px) {
+  /* 所有對話框與確認框配合螢幕寬度 */
+  .el-dialog {
+    width: 94vw !important;
+    margin-top: 4vh !important;
+  }
+  .el-dialog__body { padding-left: 14px; padding-right: 14px; }
+  .el-message-box { --el-messagebox-width: 92vw; }
+
+  /* iOS Safari 在輸入框字級 < 16px 時會自動放大畫面 */
+  input, textarea, select,
+  .el-input__inner, .el-textarea__inner { font-size: 16px !important; }
+}

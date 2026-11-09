@@ -1,17 +1,17 @@
 <template>
-  <el-container style="height:100vh">
+  <el-container class="app-shell">
     <NavSidebar />
-    <el-container>
-      <el-header style="display:flex;align-items:center;justify-content:space-between;padding:0 20px">
-        <div style="display:flex;align-items:center;gap:12px">
+    <el-container class="app-content">
+      <el-header class="page-header">
+        <div class="title-row">
           <el-button v-if="activeDeck" text @click="activeDeck = null">
             <el-icon><ArrowLeft /></el-icon> 返回
           </el-button>
-          <span style="font-size:18px;font-weight:bold">
+          <span class="page-title">
             {{ activeDeck ? deckObj?.name : '單字' }}
           </span>
         </div>
-        <div style="display:flex;gap:8px">
+        <div class="header-actions">
           <el-button @click="showImport = true">📥 匯入檔案</el-button>
           <template v-if="!activeDeck">
             <el-button @click="showDeckMgr = true">管理單字集</el-button>
@@ -67,12 +67,33 @@
             >{{ g.toUpperCase() }}</button>
           </div>
 
-          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-            <el-input v-model="search" placeholder="搜尋..." style="width:200px" clearable />
-            <span style="color:#999;font-size:13px">共 {{ filtered.length }} 字</span>
+          <div class="search-row">
+            <el-input v-model="search" placeholder="搜尋..." class="search-input" clearable />
+            <span style="color:#999;font-size:13px;white-space:nowrap">共 {{ filtered.length }} 字</span>
           </div>
 
-          <el-table :data="filtered" v-loading="wordsStore.loading" stripe @selection-change="selected = $event">
+          <!-- 手機：卡片清單 -->
+          <div v-if="isMobile" v-loading="wordsStore.loading" class="word-cards">
+            <div v-for="w in pagedWords" :key="w.id" class="word-card">
+              <el-checkbox :model-value="selectedIds.has(w.id)" @change="toggleSelect(w)" />
+              <div class="wc-body">
+                <div class="wc-top">
+                  <span class="wc-word">{{ w.word }}</span>
+                  <span v-if="w.part_of_speech" class="wc-pos">{{ w.part_of_speech }}</span>
+                  <el-tag :type="statusType(w)" size="small" class="wc-tag">{{ statusLabel(w) }}</el-tag>
+                </div>
+                <div class="wc-def">{{ w.definition }}</div>
+                <div class="wc-actions">
+                  <el-button size="small" @click="openEdit(w)">編輯</el-button>
+                  <el-button size="small" type="danger" plain @click="remove(w.id)">刪除</el-button>
+                </div>
+              </div>
+            </div>
+            <p v-if="!wordsStore.loading && pagedWords.length === 0" class="empty-text">沒有單字</p>
+          </div>
+
+          <!-- 桌機：表格 -->
+          <el-table v-else :data="pagedWords" row-key="id" v-loading="wordsStore.loading" stripe @selection-change="selected = $event">
             <el-table-column type="selection" width="44" />
             <el-table-column prop="word" label="單字" width="160" />
             <el-table-column prop="part_of_speech" label="詞性" width="80" />
@@ -90,7 +111,20 @@
             </el-table-column>
           </el-table>
 
-          <div v-if="selected.length > 0" style="margin-top:12px;display:flex;align-items:center;gap:8px">
+          <!-- 分頁：一次只畫 PAGE_SIZE 列，避免 1500 列一次渲染造成手機卡頓 -->
+          <el-pagination
+            v-if="filtered.length > PAGE_SIZE"
+            v-model:current-page="page"
+            :page-size="PAGE_SIZE"
+            :total="filtered.length"
+            :pager-count="5"
+            layout="prev, pager, next"
+            size="small"
+            background
+            style="margin-top:12px;justify-content:center"
+          />
+
+          <div v-if="selected.length > 0" style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="font-size:13px">已選 {{ selected.length }} 字，移動到：</span>
             <el-select v-model="batchDeck" placeholder="選擇單字集" clearable style="width:150px">
               <el-option label="（移除分類）" :value="null" />
@@ -105,7 +139,7 @@
 
   <!-- 新增/編輯 Dialog -->
   <el-dialog v-model="showForm" :title="editId ? '編輯單字' : '新增單字'" width="500px">
-    <el-form :model="form" label-width="80px">
+    <el-form :model="form" label-width="80px" :label-position="isMobile ? 'top' : 'right'">
       <el-form-item label="英文單字">
         <el-input v-model="form.word" />
       </el-form-item>
@@ -161,7 +195,6 @@
   <ReviewDialog
     v-model="showReview"
     :words="reviewWords"
-    @done="wordsStore.fetchAll()"
   />
 
   <!-- 匯入檔案 -->
@@ -169,8 +202,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import { useIsMobile } from '../composables/useIsMobile.js'
 import NavSidebar from '../components/NavSidebar.vue'
 import ReviewDialog from '../components/ReviewDialog.vue'
 import ImportDialog from '../components/ImportDialog.vue'
@@ -244,11 +279,33 @@ const filtered = computed(() => {
   })
 })
 
+const PAGE_SIZE = 50
+const page = ref(1)
+const pagedWords = computed(() =>
+  filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE)
+)
+watch([search, filterGroup, activeDeck], () => { page.value = 1 })
+
+// 手機卡片的勾選（桌機由 el-table 管理）；換頁時只保留目前頁面上的勾選，與表格行為一致
+const isMobile = useIsMobile()
+const selectedIds = computed(() => new Set(selected.value.map(w => w.id)))
+function toggleSelect(w) {
+  selected.value = selectedIds.value.has(w.id)
+    ? selected.value.filter(s => s.id !== w.id)
+    : [...selected.value, w]
+}
+watch(pagedWords, list => {
+  if (!isMobile.value) return
+  const ids = new Set(list.map(w => w.id))
+  selected.value = selected.value.filter(s => ids.has(s.id))
+})
+
+// 單字已在 onMounted 全部載入，切換單字集不必重抓（約 1 MB）
 async function enterDeck(deckId) {
   activeDeck.value = deckId
   search.value = ''
   filterGroup.value = ''
-  await wordsStore.fetchAll()
+  if (wordsStore.words.length === 0) await wordsStore.fetchAll()
 }
 
 function statusLabel(row) {
@@ -286,8 +343,13 @@ async function save() {
   }
 }
 
+// ElMessageBox.confirm 在按「取消」時會 reject，視為正常操作
+function confirmed(promise) {
+  return promise.then(() => true, () => false)
+}
+
 async function remove(id) {
-  await ElMessageBox.confirm('確定刪除這個單字？', '刪除', { type: 'warning' })
+  if (!await confirmed(ElMessageBox.confirm('確定刪除這個單字？', '刪除', { type: 'warning' }))) return
   await wordsStore.removeWord(id)
   ElMessage.success('已刪除')
 }
@@ -315,7 +377,7 @@ async function saveDeck(id) {
   editingDeck.value = null
 }
 async function removeDeck(id) {
-  await ElMessageBox.confirm('刪除後，該單字集內的單字會變成未分類。確定刪除？', '刪除單字集', { type: 'warning' })
+  if (!await confirmed(ElMessageBox.confirm('刪除後，該單字集內的單字會變成未分類。確定刪除？', '刪除單字集', { type: 'warning' }))) return
   await decksStore.removeDeck(id)
   ElMessage.success('已刪除')
 }
@@ -327,6 +389,49 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.app-shell { height: 100vh; height: 100dvh; }
+.app-content { min-width: 0; min-height: 0; }
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 20px;
+}
+.title-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.page-title {
+  font-size: 18px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.header-actions .el-button + .el-button { margin-left: 0; }
+.search-row { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+.search-input { width: 200px; }
+
+/* 手機卡片清單 */
+.word-cards { display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+.word-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.wc-body { flex: 1; min-width: 0; }
+.wc-top { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.wc-word { font-size: 17px; font-weight: 600; color: #303133; word-break: break-word; }
+.wc-pos { font-size: 12px; color: #909399; }
+.wc-tag { margin-left: auto; }
+.wc-def { font-size: 14px; color: #606266; margin-top: 4px; line-height: 1.5; word-break: break-word; }
+.wc-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+.wc-actions .el-button + .el-button { margin-left: 0; }
+.empty-text { text-align: center; color: #909399; padding: 24px 0; }
+
 .deck-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -386,5 +491,32 @@ onMounted(async () => {
 .az-btn.empty {
   color: #c0c4cc;
   border-color: #e9e9eb;
+}
+
+/* 手機：必須放在最後，才能覆蓋上面的基本樣式 */
+@media (max-width: 768px) {
+  .app-shell { flex-direction: column; }
+  .page-header {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+  .header-actions .el-button { padding: 8px 10px; }
+  :deep(.el-main) { padding: 12px; }
+  .deck-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .deck-card { padding: 16px 14px; }
+  .deck-name { font-size: 16px; }
+  .search-input { flex: 1; width: auto; }
+
+  /* A–Z 改成單列橫向捲動 */
+  .az-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .az-tabs::-webkit-scrollbar { display: none; }
+  .az-btn { flex-shrink: 0; padding: 6px 11px; font-size: 14px; }
 }
 </style>

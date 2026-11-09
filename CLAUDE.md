@@ -149,6 +149,25 @@ Never write recognized image content without first showing the extracted list.
 
 - The edit form in `VocabView.vue` only edits the flat fields and does not send `senses`; `updateWord` keeps the stored `senses` when the body omits it. After an edit, the flat fields and `senses` can therefore diverge. There is no sense editor yet, and no UI displays `senses`.
 - `frontend/src/components/HelloWorld.vue` and `src/assets/hero.png` are unused Vite template leftovers.
+## Frontend Performance
+
+The app is used on phones, so keep the bundle small and the DOM light.
+
+- Element Plus is loaded on demand via `unplugin-vue-components` (`ElementPlusResolver` in `vite.config.js`). Do not add `app.use(ElementPlus)` or import `element-plus/dist/index.css`.
+- Icons are imported per component (`import { ArrowLeft } from '@element-plus/icons-vue'`), never registered globally.
+- `ElMessage` / `ElMessageBox` are imported in scripts, so their styles are imported manually in `main.js`. If you use another service-style API (e.g. `ElNotification`, `ElLoading.service`), add its style import there too.
+- The word table is paginated (`PAGE_SIZE` = 50 in `VocabView.vue`); do not render the full word list at once.
+- All words are fetched once on mount; avoid re-fetching the full list (~1 MB) on navigation or after practice.
+
+## Mobile Layout
+
+- Breakpoint: `max-width: 768px`, shared by `composables/useIsMobile.js` (JS) and `@media` rules (CSS). Keep them in sync.
+- `NavSidebar` renders a top bar + `el-drawer` on mobile, `el-aside` on desktop.
+- `VocabView` renders word cards on mobile and `el-table` on desktop; both read `pagedWords`, and selection is kept in `selected`.
+- `src/style.css` (global) makes every `.el-dialog` / message box fit the screen on mobile and sets input font-size to 16px (prevents iOS zoom). New dialogs need no per-dialog width handling.
+- In scoped styles, put `@media` blocks after the base rules they override.
+- Verify layout changes at 390×844 and 1280×800 with no horizontal overflow.
+
 ## Sorting
 
 - Word lists are sorted A→Z case-insensitively: Worker uses `ORDER BY word COLLATE NOCASE`, and `stores/words.js` re-sorts with `byWord` after fetch/add/edit. Keep both in sync.

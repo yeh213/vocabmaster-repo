@@ -51,6 +51,7 @@ async function submit() {
 }
 .login-card {
   width: 360px;
+  max-width: calc(100vw - 32px);
   text-align: center;
 }
 h2 { margin-bottom: 8px; }

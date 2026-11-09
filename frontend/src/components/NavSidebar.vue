@@ -1,5 +1,39 @@
 <template>
-  <el-aside width="200px" class="sidebar">
+  <!-- 手機：頂部列 + 左側抽屜 -->
+  <template v-if="isMobile">
+    <div class="mobile-bar">
+      <button class="menu-btn" aria-label="開啟選單" @click="drawer = true">☰</button>
+      <span class="mobile-logo">VocabMaster</span>
+    </div>
+    <el-drawer v-model="drawer" direction="ltr" size="260px" :with-header="false">
+      <div class="sidebar in-drawer">
+        <div class="logo">VocabMaster</div>
+        <el-menu :default-active="route.path" router @select="drawer = false">
+          <el-menu-item index="/vocab">
+            <el-icon><Reading /></el-icon>單字
+          </el-menu-item>
+        </el-menu>
+        <div class="ai-panel">
+          <div class="ai-label">🤖 Gemini API Key</div>
+          <div class="ai-key-row">
+            <input v-model="localKey" :type="showKey ? 'text' : 'password'" class="ai-input" @change="handleSave" />
+            <button class="ai-eye" @click="showKey = !showKey">{{ showKey ? '🙈' : '👁' }}</button>
+          </div>
+          <div class="ai-label" style="margin-top:10px">模型</div>
+          <select v-model="localModel" class="ai-select" @change="handleSave">
+            <option v-for="m in GEMINI_MODELS" :key="m.id" :value="m.id">{{ m.id }}</option>
+          </select>
+          <div v-if="saved" class="ai-saved">✓ 已儲存</div>
+        </div>
+        <div class="bottom">
+          <el-button text @click="auth.logout(); router.push('/login')">登出</el-button>
+        </div>
+      </div>
+    </el-drawer>
+  </template>
+
+  <!-- 桌機：左側欄 -->
+  <el-aside v-else width="200px" class="sidebar">
     <div class="logo">VocabMaster</div>
     <el-menu :default-active="route.path" router>
       <el-menu-item index="/vocab">
@@ -37,9 +71,13 @@
 <script setup>
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Reading } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useAISettingsStore, GEMINI_MODELS } from '../stores/aiSettings.js'
+import { useIsMobile } from '../composables/useIsMobile.js'
 
+const isMobile = useIsMobile()
+const drawer = ref(false)
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -64,9 +102,33 @@ function handleSave() {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   background: #fff;
   border-right: 1px solid #e4e7ed;
 }
+.sidebar.in-drawer { height: 100%; border-right: none; }
+:deep(.el-drawer__body) { padding: 0; }
+
+.mobile-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 8px;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+  flex-shrink: 0;
+}
+.menu-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: #303133;
+}
+.mobile-logo { font-size: 17px; font-weight: bold; }
 
 .logo {
   padding: 20px 16px;
