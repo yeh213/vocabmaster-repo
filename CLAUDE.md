@@ -36,7 +36,7 @@ frontend/
   src/router.js            /login, /vocab (unknown paths redirect to /vocab)
   src/stores/              auth, words, decks, aiSettings
   src/views/               LoginView, VocabView
-  src/components/          NavSidebar, ReviewDialog (typing practice), ImportDialog (file import), AISettingsDialog
+  src/components/          NavSidebar (incl. AI settings), ReviewDialog (typing practice), ImportDialog (file import)
   src/utils/importParser.js  CSV/JSON parsing for file import
 ```
 
@@ -141,7 +141,8 @@ Never write recognized image content without first showing the extracted list.
 
 ### Gemini (planned, not implemented)
 
-- AI settings UI exists: `stores/aiSettings.js` saves `{ apiKey, model }` to `localStorage` key `vocabmaster_ai`; default model `gemini-3.7-flash`.
+- AI settings UI is in `NavSidebar`; `stores/aiSettings.js` saves `{ apiKey, model }` to `localStorage` key `vocabmaster_ai`. Default model: `DEFAULT_MODEL` (`gemini-3.8-flash`).
+- Model list (`GEMINI_MODELS`) was last checked against Google's models/deprecations/pricing pages on 2026-11-10. Re-check those pages before editing it; mark models without a free tier with `paid: true`. When removing a model, add it to `RETIRED_MODELS` with Google's replacement so saved settings migrate.
 - No Gemini calls exist yet. Planned features: 造句批改, AI 出題, 情境對話 (see `PLAN.md` §14).
 - Where the key lives (browser vs. Worker secret `GEMINI_API_KEY`) is not decided yet — ask the user before implementing the first AI call.
 

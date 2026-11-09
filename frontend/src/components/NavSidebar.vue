@@ -21,7 +21,7 @@
           </div>
           <div class="ai-label" style="margin-top:10px">模型</div>
           <select v-model="localModel" class="ai-select" @change="handleSave">
-            <option v-for="m in GEMINI_MODELS" :key="m.id" :value="m.id">{{ m.id }}</option>
+            <option v-for="m in GEMINI_MODELS" :key="m.id" :value="m.id">{{ m.id }}{{ m.paid ? '（需付費）' : '' }}</option>
           </select>
           <div v-if="saved" class="ai-saved">✓ 已儲存</div>
         </div>
@@ -56,7 +56,7 @@
 
       <div class="ai-label" style="margin-top:10px">模型</div>
       <select v-model="localModel" class="ai-select" @change="handleSave">
-        <option v-for="m in GEMINI_MODELS" :key="m.id" :value="m.id">{{ m.id }}</option>
+        <option v-for="m in GEMINI_MODELS" :key="m.id" :value="m.id">{{ m.id }}{{ m.paid ? '（需付費）' : '' }}</option>
       </select>
 
       <div v-if="saved" class="ai-saved">✓ 已儲存</div>
