@@ -5,12 +5,6 @@
       <el-menu-item index="/vocab">
         <el-icon><Reading /></el-icon>單字
       </el-menu-item>
-      <el-menu-item index="/quiz">
-        <el-icon><List /></el-icon>考題
-      </el-menu-item>
-      <el-menu-item index="/notes">
-        <el-icon><Notebook /></el-icon>筆記
-      </el-menu-item>
     </el-menu>
 
     <div class="ai-panel">
