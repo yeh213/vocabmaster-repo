@@ -10,7 +10,7 @@ export async function listWords(c) {
   if (deck_id === 'none') { conditions.push('deck_id IS NULL'); }
   else if (deck_id) { conditions.push('deck_id = ?'); params.push(deck_id); }
   if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
-  sql += ' ORDER BY word ASC';
+  sql += ' ORDER BY word COLLATE NOCASE ASC';
   const { results } = await c.env.DB.prepare(sql).bind(...params).all();
   return c.json(results.map(deserialize));
 }

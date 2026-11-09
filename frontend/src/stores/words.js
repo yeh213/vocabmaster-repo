@@ -2,6 +2,13 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '../api.js'
 
+// 依英文字母排序，不分大小寫（與後端 ORDER BY word COLLATE NOCASE 一致）
+function byWord(a, b) {
+  const x = (a.word ?? '').toLowerCase()
+  const y = (b.word ?? '').toLowerCase()
+  return x < y ? -1 : x > y ? 1 : 0
+}
+
 export const useWordsStore = defineStore('words', () => {
   const words = ref([])
   const loading = ref(false)
@@ -10,7 +17,8 @@ export const useWordsStore = defineStore('words', () => {
     loading.value = true
     try {
       const qs = new URLSearchParams(params).toString()
-      words.value = await api.get('/api/words' + (qs ? '?' + qs : ''))
+      const list = await api.get('/api/words' + (qs ? '?' + qs : ''))
+      words.value = list.sort(byWord)
     } finally {
       loading.value = false
     }
@@ -19,6 +27,7 @@ export const useWordsStore = defineStore('words', () => {
   async function addWord(data) {
     const w = await api.post('/api/words', data)
     words.value.push(w)
+    words.value.sort(byWord)
     return w
   }
 
@@ -26,6 +35,7 @@ export const useWordsStore = defineStore('words', () => {
     const w = await api.put(`/api/words/${id}`, data)
     const i = words.value.findIndex(x => x.id === id)
     if (i !== -1) words.value[i] = w
+    words.value.sort(byWord)
     return w
   }
 
