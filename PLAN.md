@@ -357,6 +357,7 @@ c:\Users\AAFCT\Desktop\新增\
 - [ ] 單字卡翻牌模式
 - [x] 打字練習模式（ReviewDialog.vue：中→英 / 英→中、練習/測驗模式、連動 SM-2）
 - [ ] SM-2 今日到期複習列表
+- [x] 上傳檔案匯入（CSV / JSON，預覽、重複自動略過、選單字集；2026-11-10）
 
 ### Phase 3：Quizzes 模組 — 已移除（2026-11-10）
 - 前端頁面/store 與 Worker 路由/handler 已刪除；D1 `quizzes` 表保留未 DROP

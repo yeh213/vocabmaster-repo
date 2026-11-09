@@ -12,6 +12,7 @@
           </span>
         </div>
         <div style="display:flex;gap:8px">
+          <el-button @click="showImport = true">📥 匯入檔案</el-button>
           <template v-if="!activeDeck">
             <el-button @click="showDeckMgr = true">管理單字集</el-button>
           </template>
@@ -163,21 +164,8 @@
     @done="wordsStore.fetchAll()"
   />
 
-  <!-- 首次匯入 -->
-  <el-dialog v-model="showImport" title="☁️ 首次匯入" width="420px">
-    <p>將 vocab-data.json 的 1500 個單字批次上傳，並指定到單字集。</p>
-    <el-form style="margin-top:12px" label-width="80px">
-      <el-form-item label="單字集">
-        <el-select v-model="importDeckId" placeholder="選擇單字集（選填）" clearable style="width:200px">
-          <el-option v-for="d in decksStore.decks" :key="d.id" :label="d.name" :value="d.id" />
-        </el-select>
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="showImport = false">取消</el-button>
-      <el-button type="primary" :loading="importing" @click="doImport">開始匯入</el-button>
-    </template>
-  </el-dialog>
+  <!-- 匯入檔案 -->
+  <ImportDialog v-model="showImport" :default-deck-id="activeDeck" />
 </template>
 
 <script setup>
@@ -185,6 +173,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import NavSidebar from '../components/NavSidebar.vue'
 import ReviewDialog from '../components/ReviewDialog.vue'
+import ImportDialog from '../components/ImportDialog.vue'
 import { useWordsStore } from '../stores/words.js'
 import { useDecksStore } from '../stores/decks.js'
 
@@ -199,8 +188,6 @@ const batchDeck = ref(null)
 const showForm = ref(false)
 const showImport = ref(false)
 const showDeckMgr = ref(false)
-const importing = ref(false)
-const importDeckId = ref('')
 const editId = ref(null)
 const form = ref({ word: '', part_of_speech: '', definition: '', example: '' })
 const newDeckName = ref('')
@@ -331,29 +318,6 @@ async function removeDeck(id) {
   await ElMessageBox.confirm('刪除後，該單字集內的單字會變成未分類。確定刪除？', '刪除單字集', { type: 'warning' })
   await decksStore.removeDeck(id)
   ElMessage.success('已刪除')
-}
-
-async function doImport() {
-  importing.value = true
-  try {
-    const res = await fetch('/vocab-data.json')
-    const data = await res.json()
-    const all = data.words.map(w => ({ ...w, deck_id: importDeckId.value || null }))
-    const CHUNK = 200
-    let total = 0
-    for (let i = 0; i < all.length; i += CHUNK) {
-      const result = await wordsStore.importWords(all.slice(i, i + CHUNK))
-      total += result.inserted
-    }
-    await decksStore.fetchAll()
-    ElMessage.success(`匯入完成，共 ${total} 筆`)
-    showImport.value = false
-    wordsStore.fetchAll()
-  } catch (e) {
-    ElMessage.error('匯入失敗：' + e.message)
-  } finally {
-    importing.value = false
-  }
 }
 
 onMounted(async () => {

@@ -51,8 +51,9 @@ export const useWordsStore = defineStore('words', () => {
     return w
   }
 
-  async function importWords(wordsArr) {
-    return api.post('/api/words/import', { words: wordsArr })
+  // 回傳 { inserted, skipped }；deckId 為 null 代表未分類
+  async function importWords(wordsArr, deckId = null) {
+    return api.post('/api/words/import', { words: wordsArr, deck_id: deckId })
   }
 
   return { words, loading, fetchAll, addWord, editWord, removeWord, review, importWords }

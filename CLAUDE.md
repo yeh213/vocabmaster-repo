@@ -31,12 +31,13 @@ worker/
 frontend/
   .env                     VITE_API_BASE (production Worker URL)
   vite.config.js           dev proxy /api -> http://localhost:8787
-  public/vocab-data.json   one-time import source for the original 1500 words (camelCase, schema v2)
+  public/vocab-data.json   original 1500 words (camelCase, schema v2); no longer loaded by code
   src/api.js               fetch wrapper, adds Authorization: Bearer <token>
   src/router.js            /login, /vocab (unknown paths redirect to /vocab)
   src/stores/              auth, words, decks, aiSettings
   src/views/               LoginView, VocabView
-  src/components/          NavSidebar, ReviewDialog (typing practice), AISettingsDialog
+  src/components/          NavSidebar, ReviewDialog (typing practice), ImportDialog (file import), AISettingsDialog
+  src/utils/importParser.js  CSV/JSON parsing for file import
 ```
 
 ## Auth
@@ -119,8 +120,22 @@ Default image source folder: `C:\Users\AAFCT\Desktop\新增\圖片` (OCR interme
 3. If any of these is unclear, flag it explicitly. Do not guess unclear text into the vocabulary bank.
 4. Show the extracted list to the user first, and ask which deck the words should go into.
 5. Wait for confirmation or corrections.
-6. Only after confirmation, write the words through the API (`POST /api/words` or `/api/words/import`), then assign the deck (see known issues).
-7. Check for duplicates of existing words before writing.
+6. Only after confirmation, write the words through `POST /api/words/import` with `{ words, deck_id }`.
+7. Check for duplicates of existing words before writing (the import endpoint also skips them).
+
+### File import (in-app)
+
+`components/ImportDialog.vue` + `utils/importParser.js`, opened by「📥 匯入檔案」in `VocabView`.
+
+- Formats: CSV and JSON only (no .xlsx, to avoid a large parser dependency).
+- CSV columns: `word, part_of_speech, definition, example, example_zh`; only `word` and `definition` are required. Chinese header aliases (單字/詞性/中文/例句/例句翻譯) are accepted.
+  - Several rows with the same word (case-insensitive) merge into one word; each row becomes one sense.
+  - Multiple meanings within a sense are separated by `;` or `；`.
+  - Encoding: UTF-8 (with or without BOM); falls back to Big5 for Excel's legacy CSV.
+- JSON: `{ "words": [...] }` (vocab-data.json format) or a bare array; SM-2 fields are kept.
+- Flow: pick file → preview (new / already exists / error per row) → choose deck (or create one) → import.
+- Duplicates are always skipped, never overwritten. `POST /api/words/import` enforces this server-side (`WHERE NOT EXISTS` on same id or same word `COLLATE NOCASE`) and returns `{ inserted, skipped }`.
+- The body-level `deck_id` applies to all words in the request; per-word `deck_id` is ignored.
 
 Never write recognized image content without first showing the extracted list.
 
@@ -132,8 +147,7 @@ Never write recognized image content without first showing the extracted list.
 
 ## Known Issues
 
-- `POST /api/words/import` ignores `deck_id` in the body (the INSERT has no `deck_id` column), so imported words land in 未分類 unless assigned afterwards with `POST /api/decks/assign`.
-- `importWords` returns `inserted` = number of rows sent, not rows actually inserted (`INSERT OR IGNORE` skips duplicate ids silently).
+- The edit form in `VocabView.vue` only edits the flat fields and does not send `senses`; `updateWord` keeps the stored `senses` when the body omits it. After an edit, the flat fields and `senses` can therefore diverge. There is no sense editor yet, and no UI displays `senses`.
 - `frontend/src/components/HelloWorld.vue` and `src/assets/hero.png` are unused Vite template leftovers.
 ## Sorting
 

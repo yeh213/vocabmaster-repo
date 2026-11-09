@@ -44,6 +44,10 @@ export async function createWord(c) {
 export async function updateWord(c) {
   const id = c.req.param('id');
   const body = await c.req.json();
+  const existing = await c.env.DB.prepare('SELECT senses FROM words WHERE id = ?').bind(id).first();
+  if (!existing) return c.json({ error: 'Not found' }, 404);
+  // 編輯表單只送扁平欄位；沒送 senses 時保留原值，避免清掉義項與例句
+  const senses = body.senses === undefined ? existing.senses : JSON.stringify(body.senses ?? []);
   const group_id = groupIdFromWord(body.word);
   await c.env.DB.prepare(`
     UPDATE words SET
@@ -51,10 +55,9 @@ export async function updateWord(c) {
     WHERE id=?
   `).bind(
     body.word, body.definition ?? '', body.part_of_speech ?? '',
-    body.example ?? '', JSON.stringify(body.senses ?? []), group_id, body.deck_id ?? null, id
+    body.example ?? '', senses, group_id, body.deck_id ?? null, id
   ).run();
   const row = await c.env.DB.prepare('SELECT * FROM words WHERE id = ?').bind(id).first();
-  if (!row) return c.json({ error: 'Not found' }, 404);
   return c.json(deserialize(row));
 }
 
@@ -64,37 +67,42 @@ export async function deleteWord(c) {
   return c.json({ ok: true });
 }
 
+// 批次匯入。body: { words: [...], deck_id?: string|null }
+// 已存在的單字（同 id，或同 word 不分大小寫）一律跳過，不覆蓋。
 export async function importWords(c) {
-  const { words } = await c.req.json();
+  const { words, deck_id = null } = await c.req.json();
   if (!Array.isArray(words) || words.length === 0) {
     return c.json({ error: 'words array required' }, 400);
   }
-  const sql = `INSERT OR IGNORE INTO words
-    (id, word, definition, part_of_speech, example, senses, group_id, created_at,
+  const valid = words.filter(w => typeof w?.word === 'string' && w.word.trim());
+  const sql = `INSERT INTO words
+    (id, word, definition, part_of_speech, example, senses, group_id, deck_id, created_at,
      repetitions, ease_factor, interval, due_date, last_reviewed, total_reviews, correct_count)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+    SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+    WHERE NOT EXISTS (SELECT 1 FROM words WHERE id = ? OR word = ? COLLATE NOCASE)`;
   const BATCH = 100;
   let inserted = 0;
-  for (let i = 0; i < words.length; i += BATCH) {
-    const chunk = words.slice(i, i + BATCH);
+  for (let i = 0; i < valid.length; i += BATCH) {
+    const chunk = valid.slice(i, i + BATCH);
     const stmts = chunk.map(w => {
       const id = w.id ?? newId();
-      const group_id = groupIdFromWord(w.word);
+      const word = w.word.trim();
       return c.env.DB.prepare(sql).bind(
-        id, w.word, w.definition ?? '', w.partOfSpeech ?? w.part_of_speech ?? '',
-        w.example ?? '', JSON.stringify(w.senses ?? []), group_id,
+        id, word, w.definition ?? '', w.partOfSpeech ?? w.part_of_speech ?? '',
+        w.example ?? '', JSON.stringify(w.senses ?? []), groupIdFromWord(word), deck_id,
         w.createdAt ?? w.created_at ?? today(),
         w.repetitions ?? 0, w.easeFactor ?? w.ease_factor ?? 2.5,
         w.interval ?? 1, w.dueDate ?? w.due_date ?? today(),
         w.lastReviewed ?? w.last_reviewed ?? null,
         w.totalReviews ?? w.total_reviews ?? 0,
-        w.correctCount ?? w.correct_count ?? 0
+        w.correctCount ?? w.correct_count ?? 0,
+        id, word
       );
     });
-    await c.env.DB.batch(stmts);
-    inserted += chunk.length;
+    const results = await c.env.DB.batch(stmts);
+    inserted += results.reduce((n, r) => n + (r.meta?.changes ?? 0), 0);
   }
-  return c.json({ inserted });
+  return c.json({ inserted, skipped: words.length - inserted });
 }
 
 export async function reviewWord(c) {
