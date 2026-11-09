@@ -29,7 +29,7 @@ worker/
   src/db.js                groupIdFromWord, newId, today
   src/handlers/            words.js (incl. SM-2), decks.js
 frontend/
-  .env                     VITE_API_BASE (production Worker URL)
+  .env.production          VITE_API_BASE (production Worker URL); only used by `npm run build`
   vite.config.js           dev proxy /api -> http://localhost:8787
   public/vocab-data.json   original 1500 words (camelCase, schema v2); no longer loaded by code
   src/api.js               fetch wrapper, adds Authorization: Bearer <token>
