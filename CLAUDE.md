@@ -1,171 +1,169 @@
 # CLAUDE.md
 
-This file is the working specification for AI agents editing this vocabulary app.
+This file is the working specification for AI agents editing VocabMaster Cloud.
+For roadmap and phase status, see `PLAN.md` (keep its checkboxes in sync when finishing a feature).
 
 ## Project
 
-VocabMaster is a pure frontend English vocabulary practice app.
+VocabMaster Cloud is a single-user English vocabulary app hosted on Cloudflare.
 
-- Entry point: `index.html`
-- Styles: `style.css`
-- Logic: `app.js`
-- Data file: `vocab-data.json`
-- No backend.
-- No Supabase.
-- No npm/build step.
-- Data must stay local JSON plus browser `localStorage` cache.
+| Part | Path | Stack | Deployed at |
+|---|---|---|---|
+| Frontend | `frontend/` | Vue 3 + Vite, Element Plus, Pinia, Vue Router | `https://vocabmaster-13l.pages.dev` (Cloudflare Pages) |
+| API | `worker/` | Cloudflare Worker + Hono | `https://vocabmaster-worker.hiyeh.workers.dev` |
+| Database | `worker/migrations/` | Cloudflare D1 (SQLite), binding `DB`, database `vocabmaster` | — |
 
-## Current Product Rules
+- Single user only. No multi-account, no social features.
+- Vocabulary only. The quizzes and notes modules were removed on 2026-11-10 (frontend pages/stores and Worker routes/handlers). Their D1 tables still exist but are unused; do not re-add these modules unless the user asks.
+- No R2: the Readings/PDF module is skipped (R2 needs a credit card).
+- The old pure-frontend version (root `index.html` / `app.js` / `style.css` / `vocab-data.json`) was deleted on 2026-11-10. Do not recreate it.
 
-### Rebuild Mode
+## Layout
 
-The existing vocabulary bank has been reset.
+```
+worker/
+  wrangler.toml            D1 binding
+  migrations/              0001_init.sql (words/quizzes/notes), 0002_decks.sql (decks + words.deck_id)
+  src/index.js             Hono routes; all /api/* go through CORS + auth
+  src/auth.js              Bearer token check against secret API_TOKEN
+  src/db.js                groupIdFromWord, newId, today
+  src/handlers/            words.js (incl. SM-2), decks.js
+frontend/
+  .env                     VITE_API_BASE (production Worker URL)
+  vite.config.js           dev proxy /api -> http://localhost:8787
+  public/vocab-data.json   one-time import source for the original 1500 words (camelCase, schema v2)
+  src/api.js               fetch wrapper, adds Authorization: Bearer <token>
+  src/router.js            /login, /vocab (unknown paths redirect to /vocab)
+  src/stores/              auth, words, decks, aiSettings
+  src/views/               LoginView, VocabView
+  src/components/          NavSidebar, ReviewDialog (typing practice), AISettingsDialog
+```
 
-- `vocab-data.json` starts with `words: []`.
-- New vocabulary should be rebuilt from uploaded images or manual entries.
-- Do not restore old A-list words unless the user explicitly asks.
+## Auth
 
-### Import Workflow From Images
+- Worker compares `Authorization: Bearer <token>` with the Worker secret `API_TOKEN` (set via `wrangler secret put API_TOKEN`).
+- Frontend stores the token in `localStorage` key `api_token`; `LoginView` is the input screen.
+- Never hard-code the token in source.
 
-When the user uploads vocabulary images:
+## Data Model (D1)
 
-Default image source folder:
+API responses and request bodies use the D1 column names (snake_case): `part_of_speech`, `group_id`, `deck_id`, `due_date`, `ease_factor`, etc.
+`POST /api/words/import` additionally accepts camelCase fields (`partOfSpeech`, `dueDate`, `easeFactor`, ...) from the old JSON format.
 
-- `C:\Users\AAFCT\Desktop\新增\圖片`
+### words
+
+| Column | Notes |
+|---|---|
+| `id` | UUID (`crypto.randomUUID()`) |
+| `word` | English word |
+| `definition` | joined readable summary of Chinese meanings, e.g. `商業的;商業廣告` |
+| `part_of_speech` | joined summary, e.g. `adj.;n.` |
+| `example` | first/best example, for list display |
+| `senses` | JSON string; source of truth for meanings / POS / examples (see below) |
+| `group_id` | `letter-a` … `letter-z` or `NULL`, always derived from `word` |
+| `deck_id` | FK to `decks.id`, or `NULL` = 未分類 |
+| `created_at` | `YYYY-MM-DD` |
+| SM-2 fields | `repetitions`, `ease_factor` (2.5), `interval` (1), `due_date`, `last_reviewed`, `total_reviews`, `correct_count` |
+
+`senses` structure — keep meanings and examples tied to their sense; never store parallel arrays that lose the relationship:
+
+```json
+[
+  {
+    "partOfSpeech": "adj.",
+    "definitions": ["商業的"],
+    "examples": [{ "en": "The commercial district is busy.", "zh": "商業區很繁忙。" }]
+  },
+  {
+    "partOfSpeech": "n.",
+    "definitions": ["商業廣告"],
+    "examples": [{ "en": "I saw a commercial on TV.", "zh": "我在電視上看到一則廣告。" }]
+  }
+]
+```
+
+When writing a word, keep the flat fields (`definition`, `part_of_speech`, `example`) consistent with `senses`.
+
+### decks
+
+`id`, `name`, `created_at`. `GET /api/decks` also returns `word_count`.
+Deleting a deck sets its words' `deck_id` to `NULL` (words are not deleted).
+The original 1500 words are in the deck「成大」(id `deck-ncku` according to `PLAN.md`; not re-verified against D1).
+
+### quizzes / notes (unused)
+
+Created by `0001_init.sql`, no longer used by any code. Do not DROP them without asking the user (they may contain data).
+
+Schema changes go in a new numbered migration file (`worker/migrations/0003_*.sql`); never edit applied migrations.
+
+## Rules
+
+### Letter groups (A–Z)
+
+- `group_id` is always computed from the first letter of `word` by `groupIdFromWord` in `worker/src/db.js` (`apple` → `letter-a`, non A–Z → `NULL`).
+- The Worker recalculates it on create, update and import. Never let the user pick it and never trust a client-sent `group_id`.
+- Letter groups are fixed. Use decks for custom collections, not new groups.
+
+### SM-2
+
+- Implemented server-side in `worker/src/handlers/words.js` (`calcSM2`); call `POST /api/words/:id/review` with `quality` 0–5.
+- `quality >= 3` counts as correct. Typing practice sends 5 for correct, 1 for wrong/skip.
+- Practice mode (「顯示答案」) must not call the review API.
+
+### Adding vocabulary from images
+
+Default image source folder: `C:\Users\AAFCT\Desktop\新增\圖片` (OCR intermediates live in `_converted`, `_ocr`, `_ocr_json`, `_review`).
 
 1. Read/OCR the image.
-2. Extract each word with all visible information:
-   - English word
-   - Chinese meanings
-   - part(s) of speech
-   - English example(s)
-   - Chinese translation(s) of examples, if visible
-3. If any word, Chinese meaning, part of speech, English example, or Chinese example translation is unclear, flag it explicitly before writing. Do not guess unclear text into the vocabulary bank.
-4. Show the extracted list to the user first.
-5. Wait for user confirmation or corrections.
-6. Only after confirmation, write entries into `vocab-data.json`.
+2. Extract each word with all visible information: English word, Chinese meanings, part(s) of speech, English example(s), Chinese translation(s) of examples.
+3. If any of these is unclear, flag it explicitly. Do not guess unclear text into the vocabulary bank.
+4. Show the extracted list to the user first, and ask which deck the words should go into.
+5. Wait for confirmation or corrections.
+6. Only after confirmation, write the words through the API (`POST /api/words` or `/api/words/import`), then assign the deck (see known issues).
+7. Check for duplicates of existing words before writing.
 
-Never add recognized image content directly without first showing the extracted list.
+Never write recognized image content without first showing the extracted list.
 
-### Category Rule
+### Gemini (planned, not implemented)
 
-Every word is categorized by the first letter of the English word.
+- AI settings UI exists: `stores/aiSettings.js` saves `{ apiKey, model }` to `localStorage` key `vocabmaster_ai`; default model `gemini-3.7-flash`.
+- No Gemini calls exist yet. Planned features: 造句批改, AI 出題, 情境對話 (see `PLAN.md` §14).
+- Where the key lives (browser vs. Worker secret `GEMINI_API_KEY`) is not decided yet — ask the user before implementing the first AI call.
 
-Examples:
+## Known Issues
 
-- `apple` -> `A`
-- `commercial` -> `C`
-- `zebra` -> `Z`
+- `POST /api/words/import` ignores `deck_id` in the body (the INSERT has no `deck_id` column), so imported words land in 未分類 unless assigned afterwards with `POST /api/decks/assign`.
+- `importWords` returns `inserted` = number of rows sent, not rows actually inserted (`INSERT OR IGNORE` skips duplicate ids silently).
+- `frontend/src/components/HelloWorld.vue` and `src/assets/hero.png` are unused Vite template leftovers.
+## Sorting
 
-Implementation details:
+- Word lists are sorted A→Z case-insensitively: Worker uses `ORDER BY word COLLATE NOCASE`, and `stores/words.js` re-sorts with `byWord` after fetch/add/edit. Keep both in sync.
 
-- Groups are fixed A-Z categories.
-- Group IDs use `letter-a`, `letter-b`, ..., `letter-z`.
-- Group names use uppercase letters `A`, `B`, ..., `Z`.
-- `groupId` must be derived automatically from `word`.
-- Do not ask the user to pick a group for normal vocabulary.
-- Do not create custom groups for image imports.
-- If the word does not start with A-Z, use `groupId: null`.
+## Commands
 
-### Data Schema
+```powershell
+# Local dev (two terminals)
+cd worker;   npx wrangler dev        # http://localhost:8787, local D1
+cd frontend; npm run dev             # Vite, proxies /api to 8787
 
-Use schema version 2.
+# Apply migrations
+# Unverified: whether 0001/0002 were applied via `migrations apply` (tracked in d1_migrations)
+# or via `d1 execute --file`. If the latter, `migrations apply` will re-run 0002 and its
+# ALTER TABLE will fail. Check first:
+#   npx wrangler d1 execute vocabmaster --remote --command "SELECT * FROM d1_migrations"
+cd worker; npx wrangler d1 migrations apply vocabmaster --local
+cd worker; npx wrangler d1 migrations apply vocabmaster --remote   # production — confirm with user first
 
-```json
-{
-  "schemaVersion": 2,
-  "words": [],
-  "groups": [
-    { "id": "letter-a", "name": "A", "createdAt": "2026-05-30" }
-  ]
-}
+# Deploy — confirm with user first
+cd worker;   npx wrangler deploy
+cd frontend; npm run build; npx wrangler pages deploy dist --project-name vocabmaster
 ```
-
-Each word keeps legacy flat fields for existing practice modes, plus structured fields for richer dictionary data.
-
-```json
-{
-  "id": "generated-id",
-  "word": "commercial",
-  "definition": "商業的;商業廣告",
-  "partOfSpeech": "adj.;n.",
-  "example": "The commercial was shown on TV.",
-  "senses": [
-    {
-      "partOfSpeech": "adj.",
-      "definitions": ["商業的"],
-      "examples": [
-        {
-          "en": "The commercial district is busy.",
-          "zh": "商業區很繁忙。"
-        }
-      ]
-    },
-    {
-      "partOfSpeech": "n.",
-      "definitions": ["商業廣告"],
-      "examples": [
-        {
-          "en": "I saw a commercial on TV.",
-          "zh": "我在電視上看到一則廣告。"
-        }
-      ]
-    }
-  ],
-  "groupId": "letter-c",
-  "createdAt": "2026-05-30",
-  "repetitions": 0,
-  "easeFactor": 2.5,
-  "interval": 1,
-  "dueDate": "2026-05-30",
-  "lastReviewed": null,
-  "totalReviews": 0,
-  "correctCount": 0
-}
-```
-
-Rules:
-
-- `definition` is the joined readable summary used by existing lists/quizzes.
-- `partOfSpeech` is the joined readable summary, such as `adj.;n.`.
-- `example` is the first or best example for backward compatibility.
-- `senses` is the source of truth for multiple meanings, parts of speech, and examples.
-- Keep meanings/examples tied to their sense. Do not store separate parallel arrays that lose the relationship.
-
-## App Behavior
-
-### Local Storage
-
-- `KEY` should remain versioned, currently `vocabmaster_v2`.
-- Legacy `vocabmaster_v1` cache is intentionally removed on load to prevent old words returning.
-- Saving should write schema version 2 data.
-
-### Letter Groups
-
-- The app should normalize loaded/imported data so all words get the correct `groupId` from `word`.
-- The app should always expose A-Z groups in `state.groups`.
-- Manual add/edit should recalculate `groupId` after word changes.
-
-### Manual Entry
-
-Manual word entry should include:
-
-- word
-- Chinese definition
-- part of speech
-- example
-- automatic first-letter category preview
-
-The category is not manually selectable.
 
 ## Verification
 
-After code/data edits:
+After code edits:
 
-- Validate `vocab-data.json` parses.
-- Verify `words.length` and `groups.length`.
-- Run JS syntax check if available:
-
-```powershell
-C:\Users\AAFCT\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe --check app.js
-```
+- Frontend: `cd frontend; npm run build` must succeed.
+- Worker: `node --check` each changed file under `worker/src/`, or `npx wrangler deploy --dry-run`.
+- After schema changes: apply the migration with `--local` and exercise the affected endpoints via `wrangler dev`.
+- Update `PLAN.md` checkboxes when a feature is completed.

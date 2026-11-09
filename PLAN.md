@@ -355,31 +355,23 @@ c:\Users\AAFCT\Desktop\新增\
 - [x] 成大 1500 字已全部指定到「成大」Deck（deck-ncku）
 - [x] 首頁改為 Deck 卡片列表，點入才顯示單字
 - [ ] 單字卡翻牌模式
-- [ ] 打字練習模式
+- [x] 打字練習模式（ReviewDialog.vue：中→英 / 英→中、練習/測驗模式、連動 SM-2）
 - [ ] SM-2 今日到期複習列表
 
-### Phase 3：Quizzes 模組（部分完成）
-- [x] handlers/quizzes.js（CRUD）
-- [x] QuizView（管理介面：新增/編輯/刪除）
-- [ ] 作答模式（QuizPlayer）
+### Phase 3：Quizzes 模組 — 已移除（2026-11-10）
+- 前端頁面/store 與 Worker 路由/handler 已刪除；D1 `quizzes` 表保留未 DROP
 
-### Phase 4：Notes 模組（部分完成）
-- [x] handlers/notes.js（CRUD + import）
-- [x] NotesView（編輯、Markdown 預覽、匯入 .md）
-- [ ] **驗收**：實際測試寫筆記與匯入
+### Phase 4：Notes 模組 — 已移除（2026-11-10）
+- 前端頁面/store 與 Worker 路由/handler 已刪除；D1 `notes` 表保留未 DROP
 
 ### Phase 5：Readings 模組 — 跳過
 - R2 需信用卡，暫不實作
 
 ### Phase 6：收尾
 - [ ] 單字卡複習功能完成
-- [ ] 考題作答模式
 - [ ] 手機版 UI 優化
-- [ ] 刪除 legacy 舊檔
-
-### Phase 6：收尾（0.5 天）
-- [ ] 刪 `legacy/` 舊檔
-- [ ] 更新 CLAUDE.md（反映新架構）
+- [x] 刪除 legacy 舊檔（2026-11-10：index.html / app.js / style.css / vocab-data.json / 說明書.md）
+- [x] 更新 CLAUDE.md（反映新架構，2026-11-10）
 - [ ] 設定自訂網域（選填，Cloudflare Pages 本身就給 `.pages.dev` 網址）
 
 **總估**：約 7 個工作日。
